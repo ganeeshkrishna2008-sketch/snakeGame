@@ -14,7 +14,10 @@ const game = new Phaser.Game(config);
 
 // Global variables we will need
 let snake = [];
-let snakeTail = 0; // physical index of the current tail
+const maxSnakeLength = 100; // FIX 1: Added this missing variable!
+let headIndex = 99; 
+let tailIndex = 97; 
+
 let food;
 let cursors;
 let restartKey; // SPACE key to restart after game over
@@ -29,15 +32,14 @@ let highscoreText;
 let gameOver = false; // tracks when the snake has died
 let gameOverText;
 let restartText;
-let headIndex = snake.length;
-let tailIndex = 0;
+
 
 
 function preload() {
   // Create a graphics object. 
   // We use 'this.make' instead of 'this.add' because we don't want to draw 
   // this directly to the screen, we just want to use it to create textures.
-  let graphics = this.make.graphics({ x: 0, y: 0, add: false });
+    let graphics = this.make.graphics({ x: 0, y: 0, add: false });
 
   // --- 1. Generate the Food Texture (Red Square) ---
   graphics.fillStyle(0xff0000, 1); // 0xff0000 is hex for pure Red
@@ -45,124 +47,77 @@ function preload() {
   graphics.generateTexture('food', 20, 20); // Save it to the cache as 'food'
 
   // Clear the graphics object so we can draw the next shape
-  graphics.clear();
+    graphics.clear();
 
   // --- 2. Generate the Snake Body Texture (Green Square) ---
   graphics.fillStyle(0x00ff00, 1); // 0x00ff00 is hex for pure Green
   
   // Optional: Let's draw a slightly smaller square (18x18) inside the 20x20 space. 
   // This gives the snake a nice "segmented" look so the blocks don't blend into one giant green line.
-  graphics.fillRect(1, 1, 18, 18); 
+    graphics.fillRect(1, 1, 18, 18); 
   
   graphics.generateTexture('body', 20, 20); // Save it to the cache as 'body'
 
 }
 
-
 function create() {
+    let grid = this.add.grid(400, 300, 800, 600, 20, 20, 0x000000, 0, 0x333333, 0.5);
 
-// this.add.grid(centerX, centerY, totalWidth, totalHeight, cellWidth, cellHeight, fillColor, fillAlpha, outlineColor, outlineAlpha)
-  let grid = this.add.grid(400, 300, 800, 600, 20, 20, 0x000000, 0, 0x333333, 0.5);
+    // FIX 3: Cleaned up the duplicate variable resets!
+    direction = 'RIGHT';
+    moveInterval = 100; 
+    lastMoveTime = 0;
+    score = 0;
+    gameOver = false;
+    snake = [];
+    headIndex = 99;
+    tailIndex = 97;
 
-  //creating snake
-  // --- 1. INITIALIZE THE OBJECT POOL ---
-  snake = [];
-  headIndex = 99;
-  tailIndex = 97;
+    // --- 1. INITIALIZE THE OBJECT POOL ---
+    // Create 100 invisible "dummy" images
+    for (let i = 0; i < maxSnakeLength; i++) {
+        let part = this.add.image(0, 0, 'body').setOrigin(0);
+        part.setVisible(false); 
+        snake.push(part);
+    }
 
-  // Create 100 invisible "dummy" images
-  for (let i = 0; i < maxSnakeLength; i++) {
-    let part = this.add.image(0, 0, 'body').setOrigin(0);
-    part.setVisible(false); 
-    snake.push(part);
-  }
+    // --- 2. SET THE STARTING SNAKE ---
+    snake[97].setPosition(360, 300).setVisible(true); // Tail
+    snake[98].setPosition(380, 300).setVisible(true); // Middle
+    snake[99].setPosition(400, 300).setVisible(true); // Head
 
-  // --- 2. SET THE STARTING SNAKE (Indices 97, 98, 99) ---
-  // Tail at 97
-  snake[97].setPosition(360, 300).setVisible(true); 
-  // Middle at 98
-  snake[98].setPosition(380, 300).setVisible(true); 
-  // Head at 99
-  snake[99].setPosition(400, 300).setVisible(true);
+    highscore = parseInt(localStorage.getItem('highscore')) || 0;
 
-
-  // 1. Initialize the values
-  
-  snakeTail = 0;
-  direction = 'RIGHT';
-  moveInterval = 100; // Speed of the snake
-  lastMoveTime = 0;
-  score = 0;
-  gameOver = false;
-  headIndex = snake.length - 1;
-  tailIndex = 97;
-
- 
-  highscore = parseInt(localStorage.getItem('highscore')) || 0;
-
-  scoreText = this.add.text(10, 10, 'Score: 0', {
-    fontSize: '32px',
-    fill: '#ffffff'
-  });
-  scoreText.setDepth(100);
-
-  highscoreText = this.add.text(10, 40, 'High Score: ' + highscore, {
-    fontSize: '32px',
-    fill: '#ffffff'
-  });
-  highscoreText.setDepth(100);
-
-  gameOverText = this.add.text(400, 250, 'GAME OVER', {
-    fontSize: '64px',
-    fill: '#ff0000',
-    fontStyle: 'bold'
-  }).setOrigin(0.5).setVisible(false).setDepth(100);
-
-  restartText = this.add.text(400, 340, 'Press SPACE to restart', {
-    fontSize: '28px',
-    fill: '#ffffff'
-  }).setOrigin(0.5).setVisible(false).setDepth(100);
+    scoreText = this.add.text(10, 10, 'Score: 0', { fontSize: '32px', fill: '#ffffff' }).setDepth(100);
+    highscoreText = this.add.text(10, 40, 'High Score: ' + highscore, { fontSize: '32px', fill: '#ffffff' }).setDepth(100);
+    gameOverText = this.add.text(400, 250, 'GAME OVER', { fontSize: '64px', fill: '#ff0000', fontStyle: 'bold' }).setOrigin(0.5).setVisible(false).setDepth(100);
+    restartText = this.add.text(400, 340, 'Press SPACE to restart', { fontSize: '28px', fill: '#ffffff' }).setOrigin(0.5).setVisible(false).setDepth(100);
 
   // 4. Setup Keyboard Controls
-  cursors = this.input.keyboard.createCursorKeys();
-  restartKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE); // restart button
+    cursors = this.input.keyboard.createCursorKeys();
+    restartKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE); 
 
-  // 2. Spawn the Snake Head
-  // We place it at 400, 300 (the exact center of an 800x600 canvas).
-  // Because 400 and 300 are multiples of 20, it aligns perfectly with our grid.
-  let head = this.add.image(400, 300, 'body').setOrigin(0);
-  snake.push(head);
+    // FIX 2: Deleted the extra 101st snake head push from here!
 
-  // 3. Spawn the Food
-  // We place it at 200, 200 (also a multiple of 20).
-  food = this.add.image(200, 200, 'food').setOrigin(0);
+    food = this.add.image(200, 200, 'food').setOrigin(0);
 }
 
 function update(time, delta) {
   // --- 0. GAME OVER / RESTART ---
-  if (gameOver) {
-    if (Phaser.Input.Keyboard.JustDown(restartKey)) {
-      this.scene.restart();
+    if (gameOver) {
+        if (Phaser.Input.Keyboard.JustDown(restartKey)) {
+            this.scene.restart();
+        }
+        return;
     }
-    return;
-  }
 
-  // --- 1. INPUT HANDLING ---
-  if (cursors.left.isDown && direction !== 'RIGHT') {
-    direction = 'LEFT';
-  } else if (cursors.right.isDown && direction !== 'LEFT') {
-    direction = 'RIGHT';
-  } else if (cursors.up.isDown && direction !== 'DOWN') {
-    direction = 'UP';
-  } else if (cursors.down.isDown && direction !== 'UP') {
-    direction = 'DOWN';
-  }
+    if (cursors.left.isDown && direction !== 'RIGHT') direction = 'LEFT';
+    else if (cursors.right.isDown && direction !== 'LEFT') direction = 'RIGHT';
+    else if (cursors.up.isDown && direction !== 'DOWN') direction = 'UP';
+    else if (cursors.down.isDown && direction !== 'UP') direction = 'DOWN';
 
-  // --- 2. MOVEMENT TIMER ---
-  if (time < lastMoveTime + moveInterval) {
-    return;
-  }
-  lastMoveTime = time;
+    if (time < lastMoveTime + moveInterval) return;
+    lastMoveTime = time;
 
   // --- 3. CALCULATE NEW HEAD POSITION ---
     let head = snake[headIndex]; 
@@ -205,6 +160,8 @@ function update(time, delta) {
         score += 1;
         scoreText.setText('Score: ' + score);
 
+        if (score >= 97) return winGame(); // Prevent the snake from eating its own memory tail!
+
         if (score > highscore) {
             highscore = score;
             highscoreText.setText('High Score: ' + highscore);
@@ -228,5 +185,11 @@ function update(time, delta) {
 function endGame() {
     gameOver = true;
     gameOverText.setVisible(true);
+    restartText.setVisible(true);
+}
+
+function winGame() {
+    gameOver = true;
+    gameOverText.setText('YOU WIN!').setFill('#ffd700').setVisible(true);
     restartText.setVisible(true);
 }
