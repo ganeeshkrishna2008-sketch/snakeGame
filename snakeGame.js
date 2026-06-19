@@ -14,6 +14,7 @@ const game = new Phaser.Game(config);
 
 // Global variables we will need
 let snake = [];
+let snakeTail = 0; // physical index of the current tail
 let food;
 let cursors;
 let restartKey; // SPACE key to restart after game over
@@ -64,6 +65,7 @@ function create() {
 
   // 1. Initialize the empty array for the snake
   snake = [];
+  snakeTail = 0;
   direction = 'RIGHT';
   moveInterval = 100; // Speed of the snake
   lastMoveTime = 0;
@@ -108,10 +110,6 @@ function create() {
   // 3. Spawn the Food
   // We place it at 200, 200 (also a multiple of 20).
   food = this.add.image(200, 200, 'food').setOrigin(0);
-
-  // 4. Setup Keyboard Controls
-  cursors = this.input.keyboard.createCursorKeys();
-  restartKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 }
 
 function update(time, delta) {
@@ -141,7 +139,8 @@ function update(time, delta) {
     lastMoveTime = time;
 
     // --- 3. CALCULATE NEW HEAD POSITION ---
-    let head = snake[snake.length - 1];
+    let headIndex = (snakeTail + snake.length - 1) % snake.length;
+    let head = snake[headIndex];
     let newX = head.x;
     let newY = head.y;
 
@@ -181,10 +180,10 @@ function update(time, delta) {
         food.x = Phaser.Math.Between(0, maxCols) * gridSize;
         food.y = Phaser.Math.Between(0, maxRows) * gridSize;
     } else {
-        let tail = snake.shift();
+        let tail = snake[snakeTail];
         tail.x = newX;
         tail.y = newY;
-        snake.push(tail);
+        snakeTail = (snakeTail + 1) % snake.length;
     }
 }
 
