@@ -29,6 +29,8 @@ let highscoreText;
 let gameOver = false; // tracks when the snake has died
 let gameOverText;
 let restartText;
+let headIndex = snake.length;
+let tailIndex = 0;
 
 
 function preload() {
@@ -62,16 +64,40 @@ function create() {
 // this.add.grid(centerX, centerY, totalWidth, totalHeight, cellWidth, cellHeight, fillColor, fillAlpha, outlineColor, outlineAlpha)
   let grid = this.add.grid(400, 300, 800, 600, 20, 20, 0x000000, 0, 0x333333, 0.5);
 
-
-  // 1. Initialize the empty array for the snake
+  //creating snake
+  // --- 1. INITIALIZE THE OBJECT POOL ---
   snake = [];
+  headIndex = 99;
+  tailIndex = 97;
+
+  // Create 100 invisible "dummy" images
+  for (let i = 0; i < maxSnakeLength; i++) {
+    let part = this.add.image(0, 0, 'body').setOrigin(0);
+    part.setVisible(false); 
+    snake.push(part);
+  }
+
+  // --- 2. SET THE STARTING SNAKE (Indices 97, 98, 99) ---
+  // Tail at 97
+  snake[97].setPosition(360, 300).setVisible(true); 
+  // Middle at 98
+  snake[98].setPosition(380, 300).setVisible(true); 
+  // Head at 99
+  snake[99].setPosition(400, 300).setVisible(true);
+
+
+  // 1. Initialize the values
+  
   snakeTail = 0;
   direction = 'RIGHT';
   moveInterval = 100; // Speed of the snake
   lastMoveTime = 0;
   score = 0;
   gameOver = false;
+  headIndex = snake.length - 1;
+  tailIndex = 97;
 
+ 
   highscore = parseInt(localStorage.getItem('highscore')) || 0;
 
   scoreText = this.add.text(10, 10, 'Score: 0', {
@@ -113,34 +139,33 @@ function create() {
 }
 
 function update(time, delta) {
-    // --- 0. GAME OVER / RESTART ---
-    if (gameOver) {
-        if (Phaser.Input.Keyboard.JustDown(restartKey)) {
-            this.scene.restart();
-        }
-        return;
+  // --- 0. GAME OVER / RESTART ---
+  if (gameOver) {
+    if (Phaser.Input.Keyboard.JustDown(restartKey)) {
+      this.scene.restart();
     }
+    return;
+  }
 
-    // --- 1. INPUT HANDLING ---
-    if (cursors.left.isDown && direction !== 'RIGHT') {
-        direction = 'LEFT';
-    } else if (cursors.right.isDown && direction !== 'LEFT') {
-        direction = 'RIGHT';
-    } else if (cursors.up.isDown && direction !== 'DOWN') {
-        direction = 'UP';
-    } else if (cursors.down.isDown && direction !== 'UP') {
-        direction = 'DOWN';
-    }
+  // --- 1. INPUT HANDLING ---
+  if (cursors.left.isDown && direction !== 'RIGHT') {
+    direction = 'LEFT';
+  } else if (cursors.right.isDown && direction !== 'LEFT') {
+    direction = 'RIGHT';
+  } else if (cursors.up.isDown && direction !== 'DOWN') {
+    direction = 'UP';
+  } else if (cursors.down.isDown && direction !== 'UP') {
+    direction = 'DOWN';
+  }
 
-    // --- 2. MOVEMENT TIMER ---
-    if (time < lastMoveTime + moveInterval) {
-        return;
-    }
-    lastMoveTime = time;
+  // --- 2. MOVEMENT TIMER ---
+  if (time < lastMoveTime + moveInterval) {
+    return;
+  }
+  lastMoveTime = time;
 
-    // --- 3. CALCULATE NEW HEAD POSITION ---
-    let headIndex = (snakeTail + snake.length - 1) % snake.length;
-    let head = snake[headIndex];
+  // --- 3. CALCULATE NEW HEAD POSITION ---
+    let head = snake[headIndex]; 
     let newX = head.x;
     let newY = head.y;
 
@@ -155,17 +180,28 @@ function update(time, delta) {
     }
 
     // --- 5. CHECK DEATH: SELF COLLISIONS ---
-    for (let i = 0; i < snake.length; i++) {
-        if (snake[i].x === newX && snake[i].y === newY) {
+    // We loop circularly from the tail to the head to check active pieces
+    let curr = tailIndex;
+    while (true) {
+        if (snake[curr].x === newX && snake[curr].y === newY) {
             return endGame();
         }
+        if (curr === headIndex) break; // Stop checking once we reach the head
+        curr = (curr + 1) % maxSnakeLength; // Move to the next active piece
     }
 
-    // --- 6. MOVE THE SNAKE & EAT FOOD ---
-    if (newX === food.x && newY === food.y) {
-        let newHead = this.add.image(newX, newY, 'body').setOrigin(0);
-        snake.push(newHead);
+    // --- 6. MOVE THE SNAKE ---
+    // Step A: Advance the head index (wraps to 0 if it hits 100)
+    headIndex = (headIndex + 1) % maxSnakeLength;
+    
+    // Step B: Grab that invisible dummy piece, move it, and reveal it!
+    let newHead = snake[headIndex];
+    newHead.setPosition(newX, newY);
+    newHead.setVisible(true);
 
+    if (newX === food.x && newY === food.y) {
+        // EATING: 
+        // We do NOT move the tail. Because the head moved forward but the tail stayed put, the snake grew by 1!
         score += 1;
         scoreText.setText('Score: ' + score);
 
@@ -179,13 +215,15 @@ function update(time, delta) {
         let maxRows = (600 / gridSize) - 1;
         food.x = Phaser.Math.Between(0, maxCols) * gridSize;
         food.y = Phaser.Math.Between(0, maxRows) * gridSize;
+
     } else {
-        let tail = snake[snakeTail];
-        tail.x = newX;
-        tail.y = newY;
-        snakeTail = (snakeTail + 1) % snake.length;
+        // MOVING: 
+        // Hide the old tail, and advance the tail index so the snake stays the same length!
+        snake[tailIndex].setVisible(false);
+        tailIndex = (tailIndex + 1) % maxSnakeLength;
     }
 }
+
 
 function endGame() {
     gameOver = true;
